@@ -38,6 +38,211 @@
 
 //Ensar Avdiu Start
 
+class PaymentStrategy {
+  pay(amount) {
+    throw new Error("Not implemented");
+  }
+}
 
+class CardPaymentStrategy extends PaymentStrategy {
+  pay(amount) {
+   
+    console.log(`Processing card payment of $${amount}`);
+   
+    return Math.random() > 0.1; 
+  }
+}
+
+class CashPaymentStrategy extends PaymentStrategy {
+  pay(amount) {
+
+    console.log(`Processing cash payment of $${amount}`);
+    return true;
+  }
+}
+
+class PaymentFactory {
+  constructor() {
+    this.registry = new Map();
+    this._registerDefaults();
+  }
+
+  _registerDefaults() {
+    this.register("card", () => new CardPaymentStrategy());
+    this.register("cash", () => new CashPaymentStrategy());
+  }
+
+  register(paymentType, creator) {
+    this.registry.set(paymentType, creator);
+  }
+
+  create(paymentType) {
+    const creator = this.registry.get(paymentType);
+    if (!creator) {
+      throw new Error(`Payment type '${paymentType}' is not supported`);
+    }
+    return creator();
+  }
+}
+
+class PaymentProcessor {
+  constructor(paymentFactory) {
+    this.paymentFactory = paymentFactory || new PaymentFactory();
+  }
+
+  process(amount, paymentType) {
+    const strategy = this.paymentFactory.create(paymentType);
+    return strategy.pay(amount);
+  }
+}
+
+
+class EmailNotification {
+  send(to, message) {
+    console.log(`[EMAIL] To: ${to}\nMessage: ${message}`);
+    return true;
+  }
+}
+
+class SMSNotification {
+  send(to, message) {
+    console.log(`[SMS] To: ${to}\nMessage: ${message}`);
+    return true;
+  }
+}
+
+class NotificationService {
+  constructor() {
+    this.emailNotification = new EmailNotification();
+    this.smsNotification = new SMSNotification();
+  }
+
+  sendEmail(to, message) {
+    return this.emailNotification.send(to, message);
+  }
+
+  sendSMS(to, message) {
+    return this.smsNotification.send(to, message);
+  }
+}
+
+class OrderNotificationHandler {
+  constructor(notificationService) {
+    this.notificationService = notificationService || new NotificationService();
+  }
+
+  notifyOrderPlaced(order) {
+    const message = `Your order #${order.id} has been placed successfully. Total: $${order.getTotal()}`;
+    this.notificationService.sendEmail(
+      `student_${order.studentId}@example.com`,
+      message
+    );
+    this.notificationService.sendSMS(`+1234567890`, message);
+  }
+
+  notifyStatusChanged(order) {
+    const message = `Your order #${order.id} status has been updated to: ${order.status}`;
+    this.notificationService.sendEmail(
+      `student_${order.studentId}@example.com`,
+      message
+    );
+    this.notificationService.sendSMS(`+1234567890`, message);
+  }
+}
+
+
+
+class OrderService {
+  constructor(
+    orderRepository,
+    paymentProcessor,
+    orderNotificationHandler,
+    menuServiceProxy,
+    cartService
+  ) {
+    this.orderRepository = orderRepository;
+    this.paymentProcessor = paymentProcessor;
+    this.orderNotificationHandler = orderNotificationHandler;
+    this.menuServiceProxy = menuServiceProxy;
+    this.cartService = cartService;
+  }
+
+  placeOrder(studentId, paymentType) {
+    const cart = this.cartService.loadCart(studentId);
+    
+    if (cart.getItems().length === 0) {
+      throw new Error("Cart is empty");
+    }
+
+    
+    const menu = this.menuServiceProxy.getMenu();
+    const menuMap = new Map(menu.map(item => [item.id, item]));
+    let calculatedTotal = 0;
+    for (const cartItem of cart.getItems()) {
+      const menuItem = menuMap.get(cartItem.menuItemId);
+      if (menuItem) {
+        calculatedTotal += menuItem.price * cartItem.quantity;
+      }
+    }
+
+    const finalTotalAmount = calculatedTotal;
+
+    const paymentResult = this.paymentProcessor.process(
+      finalTotalAmount,
+      paymentType
+    );
+
+    if (!paymentResult) {
+      throw new Error("Payment failed");
+    }
+
+    const orderItems = cart.getItems().map(cartItem => {
+      const menuItem = menuMap.get(cartItem.menuItemId);
+      if (!menuItem) {
+        throw new Error(`Menu item ${cartItem.menuItemId} not found`);
+      }
+      const snapshot = menuItem.cloneSnapshot();
+      return new OrderItem({
+        menuItemSnapshot: snapshot,
+        quantity: cartItem.quantity
+      });
+    });
+
+    const order = new Order({
+      id: this._generateId(),
+      studentId,
+      status: "pending",
+      createdAt: new Date(),
+      items: orderItems
+    });
+
+    const savedOrder = this.orderRepository.save(order);
+
+    this.cartService.clearCart(studentId);
+
+    this.orderNotificationHandler.notifyOrderPlaced(savedOrder);
+
+    return savedOrder;
+  }
+
+  updateStatus(orderId, newStatus) {
+    const order = this.orderRepository.findById(orderId);
+
+    if (!order) {
+      throw new Error("Order not found");
+    }
+
+    order.updateStatus(newStatus);
+    const updatedOrder = this.orderRepository.save(order);
+
+    this.orderNotificationHandler.notifyStatusChanged(updatedOrder);
+
+    return updatedOrder;
+  }
+
+  _generateId() {
+    return `order_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+}
 
 //Ensar Avdiu End
