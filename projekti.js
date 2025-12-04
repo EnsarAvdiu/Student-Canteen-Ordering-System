@@ -13,7 +13,146 @@
 
 //Jona Berbatovci Start
 
+class MenuItem {
+  constructor({ id, name, price, category, isAvailable = true }) {
+    this.id = id;
+    this.name = name;
+    this.price = price;
+    this.category = category;
+    this.isAvailable = isAvailable;
+  }
 
+  cloneSnapshot() {
+    return new MenuItemSnapshot({
+      name: this.name,
+      price: this.price,
+      category: this.category
+    });
+  }
+}
+
+
+class MenuItemSnapshot {
+  constructor({ name, price, category }) {
+    this.name = name;
+    this.price = price;
+    this.category = category;
+  }
+}
+
+class MenuRepository {
+  loadMenu() {
+    throw new Error("Not implemented");
+  }
+
+  saveMenuItem(item) {
+    throw new Error("Not implemented");
+  }
+
+  removeMenuItem(id) {
+    throw new Error("Not implemented");
+  }
+}
+
+
+class LocalMenuRepository extends MenuRepository {
+  constructor() {
+    super();
+    this.menuItems = new Map(); 
+  }
+
+  loadMenu() {
+    return Array.from(this.menuItems.values()).filter(item => item.isAvailable);
+  }
+
+  saveMenuItem(item) {
+    this.menuItems.set(item.id, item);
+    return item;
+  }
+
+  removeMenuItem(id) {
+    const item = this.menuItems.get(id);
+    if (item) {
+      this.menuItems.delete(id);
+      return true;
+    }
+    return false;
+  }
+
+  findById(id) {
+    return this.menuItems.get(id) || null;
+  }
+}
+
+
+class MenuService {
+  constructor(menuRepository) {
+    this.menuRepository = menuRepository;
+  }
+
+  getMenu() {
+    return this.menuRepository.loadMenu();
+  }
+
+  addMenuItem(item) {
+    return this.menuRepository.saveMenuItem(item);
+  }
+
+  updateMenuItem(item) {
+    return this.menuRepository.saveMenuItem(item);
+  }
+
+  removeMenuItem(id) {
+    return this.menuRepository.removeMenuItem(id);
+  }
+
+  getMenuItemById(id) {
+    return this.menuRepository.findById(id);
+  }
+}
+
+
+class MenuServiceProxy {
+  constructor(menuService, currentUserProvider) {
+    this.menuService = menuService;
+    this.currentUserProvider = currentUserProvider; 
+  }
+
+  _getCurrentUser() {
+    return this.currentUserProvider ? this.currentUserProvider() : null;
+  }
+
+  _ensureStaff() {
+    const user = this._getCurrentUser();
+    if (!user || !(user instanceof Staff)) {
+      throw new Error("Only staff members can modify the menu");
+    }
+  }
+
+  getMenu() {
+
+    return this.menuService.getMenu();
+  }
+
+  getMenuItemById(id) {
+    return this.menuService.getMenuItemById(id);
+  }
+
+  addMenuItem(item) {
+    this._ensureStaff();
+    return this.menuService.addMenuItem(item);
+  }
+
+  updateMenuItem(item) {
+    this._ensureStaff();
+    return this.menuService.updateMenuItem(item);
+  }
+
+  removeMenuItem(id) {
+    this._ensureStaff();
+    return this.menuService.removeMenuItem(id);
+  }
+}
 //Jona Berbatovci End
 
 
