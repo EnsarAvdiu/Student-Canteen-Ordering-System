@@ -26,16 +26,175 @@
 
 //Elion Sahiti Start
 
+class CartItem {
+  constructor({ menuItemId, quantity }) {
+    this.menuItemId = menuItemId;
+    this.quantity = quantity;
+  }
+}
 
+class Cart {
+  constructor({ id, studentId }) {
+    this.id = id;
+    this.studentId = studentId;
+    this.items = new Map(); 
+  }
+
+  addItem(menuItemId, qty) {
+    const existingItem = this.items.get(menuItemId);
+    if (existingItem) {
+      existingItem.quantity += qty;
+    } else {
+      this.items.set(menuItemId, new CartItem({ menuItemId, quantity: qty }));
+    }
+    return this;
+  }
+
+  removeItem(menuItemId) {
+    this.items.delete(menuItemId);
+    return this;
+  }
+
+  getTotal() {
+    return 0;
+  }
+
+  clear() {
+    this.items.clear();
+    return this;
+  }
+
+  getItems() {
+    return Array.from(this.items.values());
+  }
+}
+
+class CartService {
+  constructor(menuServiceProxy) {
+    this.menuServiceProxy = menuServiceProxy;
+    this.carts = new Map(); 
+  }
+
+  loadCart(studentId) {
+    if (!this.carts.has(studentId)) {
+      this.carts.set(
+        studentId,
+        new Cart({
+          id: this._generateId(),
+          studentId
+        })
+      );
+    }
+    return this.carts.get(studentId);
+  }
+
+  getCart(studentId) {
+    return this.loadCart(studentId);
+  }
+
+  addItem(studentId, menuItemId, qty) {
+    const cart = this.loadCart(studentId);
+    const menuItem = this.menuServiceProxy.getMenuItemById(menuItemId);
+
+    if (!menuItem) {
+      throw new Error("Menu item not found");
+    }
+
+    if (!menuItem.isAvailable) {
+      throw new Error("Menu item is not available");
+    }
+
+    cart.addItem(menuItemId, qty);
+    return cart;
+  }
+
+  removeItem(studentId, menuItemId) {
+    const cart = this.loadCart(studentId);
+    cart.removeItem(menuItemId);
+    return cart;
+  }
+
+  clearCart(studentId) {
+    const cart = this.loadCart(studentId);
+    cart.clear();
+    return true;
+  }
+
+  _generateId() {
+    return `cart_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+}
+
+class OrderItem {
+  constructor({ menuItemSnapshot, quantity }) {
+    this.menuItemSnapshot = menuItemSnapshot;
+    this.quantity = quantity;
+  }
+
+  getSubtotal() {
+    return this.menuItemSnapshot.price * this.quantity;
+  }
+}
+
+class Order {
+  constructor({ id, studentId, status, createdAt, items = [] }) {
+    this.id = id;
+    this.studentId = studentId;
+    this.status = status || "pending";
+    this.createdAt = createdAt || new Date();
+    this.items = items; 
+  }
+
+  getTotal() {
+    return this.items.reduce((total, item) => total + item.getSubtotal(), 0);
+  }
+
+  updateStatus(newStatus) {
+    this.status = newStatus;
+  }
+}
+
+class OrderRepository {
+  loadOrders() {
+    throw new Error("Not implemented");
+  }
+
+  findById(id) {
+    throw new Error("Not implemented");
+  }
+
+  save(order) {
+    throw new Error("Not implemented");
+  }
+}
+
+class LocalOrderRepository extends OrderRepository {
+  constructor() {
+    super();
+    this.orders = new Map(); 
+  }
+
+  loadOrders() {
+    return Array.from(this.orders.values());
+  }
+
+  findById(id) {
+    return this.orders.get(id) || null;
+  }
+
+  save(order) {
+    this.orders.set(order.id, order);
+    return order;
+  }
+
+  findByStudentId(studentId) {
+    return Array.from(this.orders.values()).filter(
+      order => order.studentId === studentId
+    );
+  }
+}
 
 //Elion Sahiti End
-
-
-
-
-
-
-
 //Ensar Avdiu Start
 
 class PaymentStrategy {
